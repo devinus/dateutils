@@ -37,54 +37,75 @@
 -define(DAY_OF_MONTH_WITHOUT_LEADING_ZEROES, "D").
 -define(MONTH_WITH_LEADING_ZEROES, "m").
 -define(MONTH_WITHOUT_LEADING_ZEROES, "M").
+-define(HOUR_WITH_LEADING_ZEROES, "h").
+-define(HOUR_WITHOUT_LEADING_ZEROES, "H").
+-define(MINUTE_WITH_LEADING_ZEROES, "i").
+-define(MINUTE_WITHOUT_LEADING_ZEROES, "I").
+-define(SECOND_WITH_LEADING_ZEROES, "s").
+-define(SECOND_WITHOUT_LEADING_ZEROES, "S").
 
+
+
+parse(K, digits, Input) ->
+    try
+	Digits = take(K,Input),
+	N = list_to_integer(Digits),
+	{ok, N, drop(K,Input)}
+    catch
+	_:_ -> {error, "no parse"}
+    end.
+
+take(0, _)     -> [];
+take(N, [H|T]) -> [H|take(N-1, T)].
+drop(0, List)  -> List;
+drop(N, [_|T]) -> drop(N-1, T).
 
 % A full numeric representation of a year
-parse_date(?FULL_YEAR ++ XS, [Y1,Y2,Y3,Y4|YS], {_YYYY, MM, DD}) ->
-    parse_date(XS, YS, {list_to_integer([Y1, Y2, Y3, Y4]), MM, DD});
+parse_date(?FULL_YEAR ++ XS, YS, Dict) ->
+    {ok, YYYY, Rest} = parse(4, digits, YS),
+    parse_date(XS, Rest, dict:append(year, YYYY, Dict));
+
+
+% Month, with leading zeros
+parse_date(?MONTH_WITH_LEADING_ZEROES ++ XS, YS, Dict) ->
+    {ok, MM, Rest} = parse(2, digits, YS),
+    parse_date(XS, Rest, dict:append(month, MM, Dict));
+
+
+% Month, without leading zeros
+parse_date(?MONTH_WITHOUT_LEADING_ZEROES ++ XS, YS, Dict) ->
+    case parse(2, digits, YS) of
+	{ok, MM, Rest} -> parse_date(XS, Rest, dict:append(month, MM, Dict));
+	{error, _}     -> {ok, MM, Rest} = parse(1, digits, YS),
+			  parse_date(XS, Rest, dict:append(month, MM, Dict))
+    end;
 
 
 % Day of the month, with leading zeros
-parse_date(?DAY_OF_MONTH_WITH_LEADING_ZEROES ++ XS, [Y1,Y2|YS], {YYYY, MM, _DD}) ->
-    parse_date(XS, YS, {YYYY, MM, list_to_integer([Y1,Y2])});
+parse_date(?DAY_OF_MONTH_WITH_LEADING_ZEROES ++ XS, YS, Dict) ->
+    {ok, DD, Rest} = parse(2, digits, YS),
+    parse_date(XS, Rest, dict:append(day_of_month, DD, Dict));
 
 
 % Day of the month, without leading zeroes
-parse_date(?DAY_OF_MONTH_WITHOUT_LEADING_ZEROES ++ XS, [Y1,Y2|YS], {YYYY, MM, _DD}) ->
-    try parse_date(XS, YS, {YYYY, MM, list_to_integer([Y1,Y2])}) 
-    catch
-	_:_ -> parse_date(XS, [Y2|YS], {YYYY, MM, list_to_integer([Y1])})
+parse_date(?DAY_OF_MONTH_WITHOUT_LEADING_ZEROES ++ XS, YS, Dict) ->
+    case parse(2, digits, YS) of
+	{ok, DD, Rest} -> parse_date(XS, Rest, dict:append(day_of_month, DD, Dict));
+	{error, _}     -> {ok, DD, Rest} = parse(1, digits, YS),
+			  parse_date(XS, Rest, dict:append(day_of_month, DD, Dict))
     end;
-parse_date(?DAY_OF_MONTH_WITHOUT_LEADING_ZEROES ++ XS, [Y1], {YYYY, MM, _DD}) ->
-    parse_date(XS, [], {YYYY, MM, list_to_integer([Y1])});
-
-
-% Numeric representation of a month, with leading zeros
-parse_date(?MONTH_WITH_LEADING_ZEROES ++ XS, [Y1,Y2|YS], {YYYY, _MM, DD}) ->
-    parse_date(XS, YS, {YYYY, list_to_integer([Y1, Y2]), DD});
-
-
-% Numeric representation of a month, without leading zeros
-parse_date(?MONTH_WITHOUT_LEADING_ZEROES ++ XS, [Y1, Y2|YS], {YYYY, _MM, DD}) ->
-    try parse_date(XS, YS, {YYYY, list_to_integer([Y1, Y2]), DD})
-    catch
-	_:_ -> parse_date(XS, [Y2|YS], {YYYY, list_to_integer([Y1]), DD})
-    end;
-parse_date(?MONTH_WITHOUT_LEADING_ZEROES ++ XS, [Y1], {YYYY, _MM, DD}) ->
-    parse_date(XS, [], {YYYY, list_to_integer([Y1]), DD});
-
 
 % Literal characters must be identical. 
-parse_date([X|XS], [X|YS], Date) ->
-    parse_date(XS, YS, Date);
+parse_date([X|XS], [X|YS], Dict) ->
+    parse_date(XS, YS, Dict);
 
 % End of input.
-parse_date([], [], Date) ->
-    case calendar:valid_date(Date) of
-	true -> Date;
-	false -> noparse 
-    end.
+parse_date([], [], Dict) ->
+    Dict.
 
+
+build_date(DateDict, Defaults)->
+    DateDict.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% make_parser/1 returns a parser that parses dates
@@ -97,15 +118,24 @@ parse_date([], [], Date) ->
 %% > Parse("2009-12-24").
 %% noparse
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-make_parser(Format) ->
+make_parser(Format, Defaults) ->
     fun(DateString) ->
-	    try
-		parse_date(Format, DateString, date())
-	    catch
-		_:_ -> noparse
-	    end
+	    DateDict0 = dict:new(),
+	    DateDict = parse_date(Format, DateString, DateDict0),
+	    build_date(DateDict, Defaults)
     end.
 
+make_parser(Format) ->
+    Defaults = dict:from_list(
+		 [{year,  fun() -> year (today()) end},
+		  {month, fun() -> month(today()) end},
+		  {day,   fun() -> day  (today()) end}
+		 ]),
+    make_parser(Format, Defaults).
+
+year ({{YYYY, _, _},_}) -> YYYY.
+month({{   _,MM, _},_}) -> MM.
+day  ({{   _, _,DD},_}) -> DD.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% make_writer/1 creates a printer which prints dates
