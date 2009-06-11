@@ -26,3 +26,6 @@ ordinal_date2_test() ->
     Parse = dateutils:make_parser("<Y>-<DY>"),
     io:format("<Y>-<DY>: ~p~n", [Parse("2008-64")]).
 
+week_and_day_of_week_test() ->
+    Parse = dateutils:make_parser("<Y>-W<WY>-<WD>"),
+    {{2009,6,11},_} = Parse("2009-W24-4").

@@ -144,6 +144,7 @@ parse_date([], [], Dict) ->
     Dict.
 
 
+% This is kind of a mess...
 build_date(DateDict, Defaults) ->
     
     % The year is built first. there can be
@@ -153,21 +154,35 @@ build_date(DateDict, Defaults) ->
 	       error -> apply(dict:fetch(year, Defaults), [])
 	   end,
 
-    % If the day of year is in the DateDict, we use it and we are done.
+    % If the day_of_year is in the DateDict, we use it and we are done.
     case dict:find(day_of_year, DateDict) of
 	{ok, [DOY|_]} -> {Date, _} = add({{Year,1,1},{12,0,0}}, DOY-1),
 			 Date;
 	error ->
-	    Month = case dict:find(month, DateDict) of
-			{ok, [M|_]} -> M;
-			error -> apply(dict:fetch(month, Defaults), [])
-		    end,
-    
-	    Day = case dict:find(day_of_month, DateDict) of
-		      {ok, [D|_]} -> D;
-		      error -> apply(dict:fetch(day_of_month, Defaults), [])
-		  end,
-	    {Year, Month, Day}
+	    
+	    % If the week_of_year is in the DateDict, we use it (and then look for day_of_week)
+	    case dict:find(week_of_year, DateDict) of
+		{ok, [WOY|_]} -> case dict:find(day_of_week, DateDict) of
+				     {ok, [DOW|_]} -> {Date, _} = add(monday(add({{Year, 1, 1}, {12,0,0}}, WOY-1, weeks)), DOW-1),
+						  Date;
+				     error -> {Date,_} = monday(add({{Year, 1, 1}, {12,0,0}}, WOY-1, weeks)),
+					      Date
+				 end;
+
+		error ->
+		    
+		    % ok, now we look for month(_of_year) and day_of_month
+		    Month = case dict:find(month, DateDict) of
+				{ok, [M|_]} -> M;
+				error -> apply(dict:fetch(month, Defaults), [])
+			    end,
+		    
+		    Day = case dict:find(day_of_month, DateDict) of
+			      {ok, [D|_]} -> D;
+			      error -> apply(dict:fetch(day_of_month, Defaults), [])
+			  end,
+		    {Year, Month, Day}
+	    end
     end.
 
 build_time(DateDict, Defaults) ->
