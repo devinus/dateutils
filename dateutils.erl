@@ -196,17 +196,7 @@ build_datetime(DateDict, Defaults) ->
     Time = build_time(DateDict, Defaults),
     {Date, Time}.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% make_parser/1 returns a parser that parses dates
-%% according to the specified format.
-%% 
-%% Example:
-%% > Parse = dateutils:make_parser(Y/M/D).
-%% > Parse("2009/12/24").
-%% {2009,12,24}
-%% > Parse("2009-12-24").
-%% noparse
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% @spec make_parser(string()) -> (fun(string()) -> datetime()) 
 make_parser(Format, Defaults) ->
     fun(DateString) ->
 	    DateDict = parse_date(Format, DateString, dict:new()),
@@ -227,15 +217,7 @@ make_parser(Format) ->
 		 ]),
     make_parser(Format, Defaults).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% make_writer/1 creates a printer which prints dates
-%% according to the specified format.
-%%
-%% Example
-%% > ToString = dateutils:make_writer("D.M Y").
-%% > ToString(date()).
-%% 5.6 2009
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% @spec make_writer(string()) -> (fun(datetime()) -> string())
 make_writer(Format) ->
     fun(Date) ->
 	    to_string(Format, Date)
@@ -254,9 +236,7 @@ to_string([], _) ->
     [].
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% add/3 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% @spec add(datetime(), integer(), atom()) -> datetime()
 
 add(DateTime, N, seconds) ->
     T1 = calendar:datetime_to_gregorian_seconds(DateTime),
@@ -275,9 +255,7 @@ add(DateTime, N, days) ->
 add(DateTime, N, weeks) ->
     add(DateTime, 7*N, days);
 
-%% 
 % Adding months is a bit tricky.
-% 
 add({{YYYY, MM, DD}=Date, Time}, 0, months) ->
     case calendar:valid_date(Date) of
 	true  -> {Date, Time};
@@ -298,9 +276,8 @@ add(Date, N, years) ->
     add(Date, 12*N, months).
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% add/2
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% @spec add(datetime(), atom() | integer()) -> datetime()
+
 add(Date, second) ->
     add(Date, 1, seconds);
 add(Date, minute) ->
@@ -319,11 +296,7 @@ add(Date, N)  ->
     add(Date, N, days).
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% iso8601Week/1
-%%
-%% Hopefully according to the iso 8601 standard
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% @spec iso8601Week(datetime()) -> integer()
 iso8601Week(DateTime) ->
     {{YYYY, _, _} = Thursday, _} = thursday(DateTime),
     Days = calendar:date_to_gregorian_days(Thursday) - calendar:date_to_gregorian_days({YYYY, 1, 1}),
@@ -334,25 +307,39 @@ month({{   _,MM, _},_}) -> MM.
 day  ({{   _, _,DD},_}) -> DD.
 
     
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% @spec monday(datetime()) -> datetime()
 monday   ({Date,Time}) -> add({Date,Time}, 1 - calendar:day_of_the_week(Date)).
+%% @spec tuesday(datetime()) -> datetime()
 tuesday  ({Date,Time}) -> add({Date,Time}, 2 - calendar:day_of_the_week(Date)).
+%% @spec wednesday(datetime()) -> datetime()
 wednesday({Date,Time}) -> add({Date,Time}, 3 - calendar:day_of_the_week(Date)).
+%% @spec thursday(datetime()) -> datetime()
 thursday ({Date,Time}) -> add({Date,Time}, 4 - calendar:day_of_the_week(Date)).
+%% @spec friday(datetime()) -> datetime()
 friday   ({Date,Time}) -> add({Date,Time}, 5 - calendar:day_of_the_week(Date)).
+%% @spec saturday(datetime()) -> datetime()
 saturday ({Date,Time}) -> add({Date,Time}, 6 - calendar:day_of_the_week(Date)).
+%% @spec sunday(datetime()) -> datetime()
 sunday   ({Date,Time}) -> add({Date,Time}, 7 - calendar:day_of_the_week(Date)).
 
-monday   () -> monday   (erlang:localtime()).
-tuesday  () -> tuesday  (erlang:localtime()).
-wednesday() -> wednesday(erlang:localtime()).
-thursday () -> thursday (erlang:localtime()).
-friday   () -> friday   (erlang:localtime()).
-saturday () -> saturday (erlang:localtime()).
-sunday   () -> sunday   (erlang:localtime()).
+%% @spec monday() -> datetime()
+monday   () -> monday   (today()).
+%% @spec tuesday() -> datetime()
+tuesday  () -> tuesday  (today()).
+%% @spec wednesday() -> datetime()
+wednesday() -> wednesday(today()).
+%% @spec thursday() -> datetime()
+thursday () -> thursday (today()).
+%% @spec friday() -> datetime()
+friday   () -> friday   (today()).
+%% @spec saturday() -> datetime()
+saturday () -> saturday (today()).
+%% @spec sunday() -> datetime()
+sunday   () -> sunday   (today()).
 
+%% @spec today() -> datetime()
 today    () -> erlang:localtime().
+%% @spec tomorrow() -> datetime()
 tomorrow () -> add(today(), 1).
+%% @spec yesterday() -> datetime()
 yesterday() -> add(today(), -1).
