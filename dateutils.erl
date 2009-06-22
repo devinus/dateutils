@@ -32,6 +32,13 @@
 	 today/0, tomorrow/0, yesterday/0
 	]).
 
+%-export([year/1,
+%	 month/1,
+%	 week_of_year/1,
+%	 day_of_year/1,
+%	 day_of_month/1,
+%	 day_of_week/1]).
+
 -include_lib("eunit/include/eunit.hrl").
 
 -define(FULL_YEAR,                           "<Y>").
@@ -144,46 +151,80 @@ parse_date([], [], Dict) ->
     Dict.
 
 
-% This is kind of a mess...
-build_date(DateDict, Defaults) ->
+% This function decides how the date is going to be built. This depends on
+% what values are present in the DateDict.
+% 1. day_of_year
+% 2. week_of_year
+% 3. month_of_year
+determine_build_order(DateDict) ->
     
-    % The year is built first. there can be
-    % no conflict here.
-    Year = case dict:find(year, DateDict) of
+    case dict:is_key(day_of_year, DateDict) of
+	true -> day_of_year;
+	false -> case dict:is_key(week_of_year, DateDict) of
+		     true -> week_of_year;
+		     false -> month_of_year
+		 end
+    end.
+
+% Extract the year from the DateDict. If 'year' is not a 
+% key in the DateDict, use the default instead.
+determine_year(DateDict, Defaults) ->
+
+    case dict:find(year, DateDict) of
 	       {ok, [Y|_]} -> Y;
 	       error -> apply(dict:fetch(year, Defaults), [])
-	   end,
-
-    % If the day_of_year is in the DateDict, we use it and we are done.
-    case dict:find(day_of_year, DateDict) of
-	{ok, [DOY|_]} -> {Date, _} = add({{Year,1,1},{12,0,0}}, DOY-1),
-			 Date;
-	error ->
-	    
-	    % If the week_of_year is in the DateDict, we use it (and then look for day_of_week)
-	    case dict:find(week_of_year, DateDict) of
-		{ok, [WOY|_]} -> case dict:find(day_of_week, DateDict) of
-				     {ok, [DOW|_]} -> {Date, _} = add(monday(add({{Year, 1, 1}, {12,0,0}}, WOY-1, weeks)), DOW-1),
-						  Date;
-				     error -> {Date,_} = monday(add({{Year, 1, 1}, {12,0,0}}, WOY-1, weeks)),
-					      Date
-				 end;
-
-		error ->
-		    
-		    % ok, now we look for month(_of_year) and day_of_month
-		    Month = case dict:find(month, DateDict) of
-				{ok, [M|_]} -> M;
-				error -> apply(dict:fetch(month, Defaults), [])
-			    end,
-		    
-		    Day = case dict:find(day_of_month, DateDict) of
-			      {ok, [D|_]} -> D;
-			      error -> apply(dict:fetch(day_of_month, Defaults), [])
-			  end,
-		    {Year, Month, Day}
-	    end
     end.
+
+
+build_date_from(day_of_year, DateDict, Defaults) ->
+
+    Year = determine_year(DateDict, Defaults),
+
+    [DOY|_] = dict:fetch(day_of_year, DateDict),
+
+    io:format("~n Day of year: ~p ~n", [DOY]),
+
+    {Date, _} = add({{Year,1,1},{12,0,0}}, DOY-1),
+
+    Date;
+
+
+build_date_from(week_of_year, DateDict, Defaults) ->
+
+    Year = determine_year(DateDict, Defaults),
+
+    [WOY|_] = dict:fetch(week_of_year, DateDict),
+
+    DOW = case dict:find(day_of_week, DateDict) of
+	      {ok, [D|_]} -> D;
+	      error -> apply(dict:fetch(day_of_week, Defaults), [])
+	  end,
+    
+    {Date, _} = add(monday(add({{Year, 1, 1}, {12,0,0}}, WOY-1, weeks)), DOW-1),
+
+    Date;
+
+
+build_date_from(month_of_year, DateDict, Defaults) ->
+
+    Year = determine_year(DateDict, Defaults),
+    
+    Month = case dict:find(month, DateDict) of
+		{ok, [M|_]} -> M;
+		error -> apply(dict:fetch(month, Defaults), [])
+	    end,
+    
+    Day = case dict:find(day_of_month, DateDict) of
+	      {ok, [D|_]} -> D;
+	      error -> apply(dict:fetch(day_of_month, Defaults), [])
+	  end,
+    
+    {Year, Month, Day}.
+
+
+build_date(DateDict, Defaults) ->
+
+    build_date_from(determine_build_order(DateDict), DateDict, Defaults).
 
 build_time(DateDict, Defaults) ->
     Hour = apply(dict:fetch(hour, Defaults), []),	    
@@ -192,6 +233,7 @@ build_time(DateDict, Defaults) ->
     {Hour,Minute,Second}.
 
 build_datetime(DateDict, Defaults) ->
+    io:format("DateDict: ~p", [DateDict]),
     Date = build_date(DateDict, Defaults),
     Time = build_time(DateDict, Defaults),
     {Date, Time}.
@@ -302,10 +344,12 @@ iso8601Week(DateTime) ->
     Days = calendar:date_to_gregorian_days(Thursday) - calendar:date_to_gregorian_days({YYYY, 1, 1}),
     Days div 7 + 1.
 
-year ({{YYYY, _, _},_}) -> YYYY.
-month({{   _,MM, _},_}) -> MM.
-day  ({{   _, _,DD},_}) -> DD.
-
+year  ({{Y,_,_},_}) -> Y.
+month ({{_,M,_},_}) -> M.
+day   ({{_,_,D},_}) -> D.
+hour  ({_,{H,_,_}}) -> H.
+minute({_,{_,M,_}}) -> M.
+second({_,{_,_,S}}) -> S.
     
 %% @spec monday(datetime()) -> datetime()
 monday   ({Date,Time}) -> add({Date,Time}, 1 - calendar:day_of_the_week(Date)).

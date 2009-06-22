@@ -19,7 +19,7 @@ simple_date2_test() ->
 % 2009-161, represented as <Y>-<dy>
 ordinal_date_test() ->
     Parse = dateutils:make_parser("<Y>-<dy>"),
-    io:format("<Y>-<dy>: ~p~n", [Parse("2009-161")]).
+    io:format("<Y>-<dy>: ~p~n", [Parse("2009-001")]).
 
 % Same as above, without leading zeroes
 ordinal_date2_test() ->
